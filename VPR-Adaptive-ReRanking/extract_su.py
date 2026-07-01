@@ -43,7 +43,7 @@ def main():
     args = parser.parse_args()
 
     print(f"Carico z_data da: {args.z_data}")
-    z_data = torch.load(args.z_data, map_location="cpu")
+    z_data = torch.load(args.z_data, map_location="cpu", weights_only=False)
 
     # z_data contiene: database_utms, positives_per_query, predictions, distances
     distances = z_data["distances"]   # (num_queries, num_preds)
