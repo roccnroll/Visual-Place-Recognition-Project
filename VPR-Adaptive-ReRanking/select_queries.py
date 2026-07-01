@@ -130,6 +130,8 @@ def main():
     parser.add_argument("--criterion",       required=True,
                         choices=["P(hard)", "P(help)", "P(help)-aP(hurts)", "P(help)/P(hurts)>1"])
     parser.add_argument("--output-dir",      required=True)
+    parser.add_argument("--skipped-file",    default=None,
+                        help="Percorso esplicito per skipped.txt (default: <output-dir>/../skipped.txt)")
     args = parser.parse_args()
 
     # Carica JSON
@@ -177,8 +179,11 @@ def main():
     if missing:
         print(f"  WARN: {missing} file .txt non trovati in {args.preds_dir}")
 
-    # Salva lista skippate
-    skipped_path = os.path.join(args.output_dir, "skipped.txt")
+    # Salva lista skippate — fuori da output_dir per non confondere match_queries_preds.py
+    if args.skipped_file:
+        skipped_path = args.skipped_file
+    else:
+        skipped_path = os.path.join(os.path.dirname(args.output_dir.rstrip("/\\")), "skipped.txt")
     with open(skipped_path, "w") as f:
         f.write("\n".join(skip_ids))
 
