@@ -128,10 +128,9 @@
         ]
       },
       "val_hparams": {
-        "tau1": 0.5,
-        "tau5": 0.5,
-        "tau10": 0.5,
-        "note": "thresholds not calibrated - run sequential.py to optimize"
+        "tau1": 0.88,
+        "tau5": 0.98,
+        "tau10": 0.78
       }
     },
     "loftr": {
@@ -261,10 +260,9 @@
         ]
       },
       "val_hparams": {
-        "tau1": 0.5,
-        "tau5": 0.5,
-        "tau10": 0.5,
-        "note": "thresholds not calibrated - run sequential.py to optimize"
+        "tau1": 0.7,
+        "tau5": 0.98,
+        "tau10": 0.96
       }
     }
   }
