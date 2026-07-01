@@ -1,82 +1,120 @@
-# Visual Place Recognition project
+# Visual Place Recognition — Adaptive Re-Ranking
 
-This repository provides a starting code for the **Visual Place Recognition** project of the Advanced Machine Learning / Data analysis and Artificial Intelligence Course.
+This repository extends the base VPR project with an **adaptive re-ranking pipeline** that selectively applies image matching only to queries where the retrieval model is uncertain, improving R@1 while reducing unnecessary computation.
 
-The following commands are meant to be run locally. If you plan to use Colab, upload the notebook [start_your_project.ipynb](./start_your_project.ipynb) and start from there.
+> Base repo: [FarInHeight/Visual-Place-Recognition-Project](https://github.com/FarInHeight/Visual-Place-Recognition-Project)
 
-> [!NOTE]  
-> ### About datasets format
-> The adopted convention is that the names of the files with the images are:
-> ```
-> @ UTM_easting @ UTM_northing @ UTM_zone_number @ UTM_zone_letter @ latitude @ longitude @ pano_id @ tile_num @ heading @ pitch @ roll @ height @ timestamp @ note @ extension
-> ```
-> Note that some of these values can be empty (e.g. the timestamp might be unknown), and the only required values are UTM coordinates (obtained from latitude and longitude).
+---
 
-> [!WARNING]  
-> Some models require code implementation. You should identify which models require them, where they should be implemented, and then implement them.
+## Pipeline
 
-## Install the repo
+![Adaptive Re-Ranking Pipeline](docs/pipeline.png)
 
-```sh
-git clone --recursive https://github.com/FarInHeight/Visual-Place-Recognition-Project.git
+The pipeline has two phases:
+
+**Offline** — trained once on a labelled CSV:
+- Logistic regressors (`hard`, `help`, `hurts`) fit on spatial uncertainty and/or inlier features
+- Grid search over threshold τ and weight α → calibrated hyperparameters saved in `regressors/<model>_regressors.json`
+
+**Online** — run per query set:
+1. **Retrieval** — `main.py --save_for_uncertainty` produces `preds/` and `z_data.torch`
+2. **Choice 1: feature set** — extract Spatial Uncertainty (RS, SD, SU) from `z_data.torch` and/or run IM top-1 to get inliers
+3. **Choice 2: probability criterion** — apply logistic regressor with calibrated threshold to decide which queries to rerank
+4. **Selective reranking** — run full IM top-20 only on selected queries
+5. **R@1 evaluation** — combine reranked queries with skipped queries (using retrieval top-1)
+
+### Results (sf_xs val, CosPlace ResNet18-512, superpoint-lg)
+
+| | R@1 | R@5 | R@10 | R@20 |
+|---|---|---|---|---|
+| Retrieval baseline | 63.1 | — | — | — |
+| Full reranking | 77.3 | — | — | — |
+| **Adaptive (SU, P(help))** | **82.8** | **88.4** | **89.8** | **92.1** |
+
+---
+
+## Quickstart (Google Colab)
+
+Open the notebook and run in order:
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/roccnroll/Visual-Place-Recognition-Project/blob/main/adaptive_pipeline.ipynb)
+
+1. Mount Drive + clone repo + install dependencies
+2. *(Optional)* Download datasets
+3. Run VPR retrieval
+4. **Set config** — `RUN_DIR`, `FEATURE_SET`, `CRITERION`, `MATCHER`, `MODEL`
+5. **Run Pipeline cell** — all steps run automatically based on your config
+
+### Config parameters
+
+| Parameter | Options | Description |
+|---|---|---|
+| `FEATURE_SET` | `inliers` \| `RS` \| `SD` \| `SU` \| `SU+inliers` | Which features to use for the decision |
+| `CRITERION` | `P(hard)` \| `P(help)` \| `P(help)-aP(hurts)` \| `P(help)/P(hurts)>1` | Probability criterion |
+| `MATCHER` | `superpoint-lg` \| `loftr` | Image matching model |
+| `MODEL` | `cosplace` \| `megaloc` | VPR model (selects the regressors JSON) |
+| `RUN_DIR` | path | Timestamp folder created by `main.py` in Drive/VPR/logs/ |
+
+---
+
+## Repository structure
+
+```
+├── adaptive_pipeline.ipynb          # Main Colab notebook
+├── match_queries_preds.py           # IM top-20 reranking (from base repo)
+├── reranking.py                     # Full reranking baseline (from base repo)
+├── util.py                          # Geo utilities (from base repo)
+├── regressors/
+│   ├── cosplace_regressors.json     # Calibrated regressors for CosPlace
+│   └── megaloc_regressors.json      # Calibrated regressors for MegaLoc
+├── VPR-Adaptive-ReRanking/
+│   ├── extract_su.py                # z_data.torch → su_scores.csv
+│   ├── extract_inliers.py           # IM top-1 → inliers.csv
+│   ├── select_queries.py            # Applies criterion → preds_filtered/
+│   └── check_performance.py         # R@1 combining reranked + skipped
+├── VPR-methods-evaluation/
+│   └── main.py                      # VPR retrieval
+└── image-matching-models/           # Submodule
 ```
 
-## Install dependencies
+### Regressor JSON format
+
+```json
+{
+  "model": "CosPlace",
+  "matchers": {
+    "sp-lg": {
+      "feature_sets": {
+        "SU": {
+          "regressors": {
+            "hard": { "feat_cols": [...], "scaler_mean": [...], "scaler_scale": [...], "coef": [...], "intercept": ... },
+            "help": { ... },
+            "hurts": { ... }
+          },
+          "val_hparams": {
+            "P(hard)":             { "tau": ..., "alpha": null },
+            "P(help)":             { "tau": ..., "alpha": null },
+            "P(help)-aP(hurts)":   { "tau": ..., "alpha": ... },
+            "P(help)/P(hurts)>1":  { "tau": ..., "alpha": null }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
+## Local setup
 
 ```sh
+git clone --recursive https://github.com/roccnroll/Visual-Place-Recognition-Project.git
 cd Visual-Place-Recognition-Project/image-matching-models
-pip install -e .[all]
+pip install -e .
 pip install faiss-cpu
 ```
 
-## Download Datasets
-
-```sh
-cd ..
-python download_datasets.py
-```
-
-## Run VPR Evaluation
-
-```sh
-python VPR-methods-evaluation/main.py \
---num_workers 8 \
---batch_size 32 \
---log_dir log_dir \
---method=cosplace --backbone=ResNet18 --descriptors_dimension=512 \
---image_size 512 512 \
---database_folder '<path-to-database-folder>' \
---queries_folder '<path-to-queries-folder>' \
---num_preds_to_save 20 \
---recall_values 1 5 10 20 \
---save_for_uncertainty
-```
-
-## Run Image Matching on Retrieval Results
-
-```sh
-python match_queries_preds.py \
---preds-dir '<path-to-predictions-folder>' \
---matcher 'superpoint-lg' \
---device 'cuda' \
---num-preds 20
-```
-
-## Check Re-ranking Performance
-
-```sh
-python reranking.py \
---preds-dir '<path-to-predictions-folder>' \
---inliers-dir '<path-to-inliers-folder>' \
---num-preds 20 \
---recall-values 1 5 10 20
-```
-
-## Perform Uncertainty Evalutation [only for AML students]
-
-```sh
-python -m vpr_uncertainty.eval \
---preds-dir '<path-to-predictions-folder>' \
---inliers-dir '<path-to-inliers-folder>' \
---z-data-path '<path-to-z-data-file>'
-```
+> [!NOTE]
+> Dataset filename convention: `@UTM_easting@UTM_northing@zone_num@zone_letter@...`
+> Only UTM coordinates are required; other fields can be empty.
