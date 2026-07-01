@@ -152,9 +152,18 @@ def main():
 
     # ── Hard threshold (youden / best_r1 / efficiency_95) ────────────────────
     if args.criterion in HARD_THRESHOLD_CRITERIA:
+        if args.feature_set != "inliers":
+            print(f"  NOTA: criterio '{args.criterion}' usa sempre inliers.csv "
+                  f"(FEATURE_SET='{args.feature_set}' ignorato)")
         T = matcher_data["hard_thresholds"][args.criterion]["T"]
         print(f"Soglia T      : {T}  (reranka se inliers < T)")
 
+        inliers_csv = os.path.join(args.features_dir, "inliers.csv")
+        if not os.path.exists(inliers_csv):
+            raise FileNotFoundError(
+                f"Criterio '{args.criterion}' richiede inliers.csv ma non trovato in "
+                f"{args.features_dir}.\n"
+                f"  → Imposta FEATURE_SET='inliers' nel notebook per estrarlo prima.")
         feats = load_features(args.features_dir, "inliers")
         query_ids = sorted(feats.keys(), key=lambda x: int(x) if x.isdigit() else x)
 
