@@ -138,6 +138,48 @@ except Exception as e:
     fail("apply_regressor", str(e))
 
 try:
+    # inliers: scaler_mean è NEGATIVO nel nostro JSON (feature = -num_inliers)
+    # → pochi inliers (fv["inliers"]=-5) = molto incerto → P(hard) alta
+    _inl_regs = _cpl["matchers"]["sp-lg"]["feature_sets"]["inliers"]["regressors"]
+    p_hard_few  = sq.apply_regressor(_inl_regs["hard"], {"inliers": -5})
+    p_hard_many = sq.apply_regressor(_inl_regs["hard"], {"inliers": -300})
+    assert p_hard_few > p_hard_many, \
+        f"inliers: pochi inliers → P(hard) alta ({p_hard_few:.3f} vs {p_hard_many:.3f})"
+    ok(f"apply_regressor inliers: few={p_hard_few:.3f} > many={p_hard_many:.3f}")
+except Exception as e:
+    fail("apply_regressor inliers", str(e))
+
+try:
+    # RS: alta rank similarity → retrieval stabile → P(hard) ... verifica solo monotonia
+    _rs_regs = _cpl["matchers"]["sp-lg"]["feature_sets"]["RS"]["regressors"]
+    p1 = sq.apply_regressor(_rs_regs["hard"], {"RS": 0.85})
+    p2 = sq.apply_regressor(_rs_regs["hard"], {"RS": 0.98})
+    assert 0 < p1 <= 1 and 0 < p2 <= 1
+    ok(f"apply_regressor RS: RS=0.85→{p1:.3f}, RS=0.98→{p2:.3f}")
+except Exception as e:
+    fail("apply_regressor RS", str(e))
+
+try:
+    # SD: stesso check
+    _sd_regs = _cpl["matchers"]["sp-lg"]["feature_sets"]["SD"]["regressors"]
+    p1 = sq.apply_regressor(_sd_regs["hard"], {"SD": 0.92})
+    p2 = sq.apply_regressor(_sd_regs["hard"], {"SD": 0.99})
+    assert 0 < p1 <= 1 and 0 < p2 <= 1
+    ok(f"apply_regressor SD: SD=0.92→{p1:.3f}, SD=0.99→{p2:.3f}")
+except Exception as e:
+    fail("apply_regressor SD", str(e))
+
+try:
+    # SU+inliers: due feature, feat_cols=["SU","inliers"]
+    _sui_regs = _cpl["matchers"]["sp-lg"]["feature_sets"]["SU+inliers"]["regressors"]
+    assert _sui_regs["hard"]["feat_cols"] == ["SU", "inliers"]
+    p = sq.apply_regressor(_sui_regs["hard"], {"SU": 0.96, "inliers": -50})
+    assert 0 < p <= 1
+    ok(f"apply_regressor SU+inliers: p={p:.3f}")
+except Exception as e:
+    fail("apply_regressor SU+inliers", str(e))
+
+try:
     # P(help)-aP(hurts) con alpha=0 deve coincidere con P(help)
     fv = {"SU": 0.90}
     s1 = sq.compute_score("P(help)-aP(hurts)", _su_regs, fv, alpha=0.0)
