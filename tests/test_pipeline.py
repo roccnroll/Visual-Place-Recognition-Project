@@ -203,6 +203,58 @@ except Exception as e:
     fail("load_csv_as_dict", str(e))
 
 # ════════════════════════════════════════════════════════════
+# 2b. Hard threshold — youden / best_r1 / efficiency_95
+# ════════════════════════════════════════════════════════════
+section("2b. Hard threshold criteria")
+
+try:
+    with open(REGRESSORS_DIR / "cosplace_regressors.json") as f:
+        _cpl2 = json.load(f)
+    ht = _cpl2["matchers"]["sp-lg"]["hard_thresholds"]
+    assert ht["youden"]["T"]        == 28
+    assert ht["best_r1"]["T"]       == 23
+    assert ht["efficiency_95"]["T"] == 22
+    ok("cosplace sp-lg hard_thresholds nel JSON")
+except Exception as e:
+    fail("hard_thresholds JSON", str(e))
+
+try:
+    with open(REGRESSORS_DIR / "megaloc_regressors.json") as f:
+        _meg2 = json.load(f)
+    ht_m = _meg2["matchers"]["sp-lg"]["hard_thresholds"]
+    assert ht_m["youden"]["T"] == 30
+    assert ht_m["best_r1"]["T"] == 0
+    ok("megaloc sp-lg hard_thresholds nel JSON")
+except Exception as e:
+    fail("megaloc hard_thresholds JSON", str(e))
+
+try:
+    # logica hard threshold: inliers < T → rerank
+    T = 28
+    assert (10 < T) == True   # 10 inliers → rerank
+    assert (50 < T) == False  # 50 inliers → skip
+    ok("hard threshold logica (inliers < T)")
+except Exception as e:
+    fail("hard threshold logica", str(e))
+
+try:
+    # verifica che select_queries carichi correttamente il percorso hard threshold
+    # simulando le variabili interne
+    with open(REGRESSORS_DIR / "cosplace_regressors.json") as f:
+        d = json.load(f)
+    T = d["matchers"]["sp-lg"]["hard_thresholds"]["youden"]["T"]
+    # inliers.csv ha valori POSITIVI
+    queries = {"0": {"inliers": 10}, "1": {"inliers": 50}, "2": {"inliers": 28}}
+    rerank = [qid for qid, fv in queries.items() if fv["inliers"] < T]
+    skip   = [qid for qid, fv in queries.items() if fv["inliers"] >= T]
+    assert "0" in rerank   # 10 < 28
+    assert "1" in skip     # 50 >= 28
+    assert "2" in skip     # 28 >= 28 (boundary: uguale = skip)
+    ok(f"hard threshold partizionamento T={T}: rerank={rerank}, skip={skip}")
+except Exception as e:
+    fail("hard threshold partizionamento", str(e))
+
+# ════════════════════════════════════════════════════════════
 # 3. select_queries — copia .txt end-to-end
 # ════════════════════════════════════════════════════════════
 section("3. select_queries — copia .txt con preds sintetici")

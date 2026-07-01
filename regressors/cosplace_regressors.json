@@ -902,6 +902,17 @@
             }
           }
         }
+      },
+      "hard_thresholds": {
+        "youden": {
+          "T": 28
+        },
+        "best_r1": {
+          "T": 23
+        },
+        "efficiency_95": {
+          "T": 22
+        }
       }
     },
     "loftr": {
@@ -1418,6 +1429,17 @@
               "pct_val": 95.63367946953585
             }
           }
+        }
+      },
+      "hard_thresholds": {
+        "youden": {
+          "T": 35
+        },
+        "best_r1": {
+          "T": 38
+        },
+        "efficiency_95": {
+          "T": 33
         }
       }
     }

@@ -97,6 +97,9 @@ def apply_regressor(reg, feature_values):
 #  Criterio di probabilità                                                      #
 # --------------------------------------------------------------------------- #
 
+HARD_THRESHOLD_CRITERIA = {"youden", "best_r1", "efficiency_95"}
+
+
 def compute_score(criterion, regressors, feature_values, alpha):
     if criterion == "P(hard)":
         return apply_regressor(regressors["hard"], feature_values)
@@ -109,7 +112,6 @@ def compute_score(criterion, regressors, feature_values, alpha):
     elif criterion == "P(help)/P(hurts)>1":
         p_help  = apply_regressor(regressors["help"],  feature_values)
         p_hurts = apply_regressor(regressors["hurts"], feature_values)
-        # score > tau (tau=1.0 fisso) → reranka se P(help)/P(hurts) > 1
         return p_help / (p_hurts + 1e-8)
     else:
         raise ValueError(f"Criterio sconosciuto: {criterion}")
@@ -128,7 +130,8 @@ def main():
     parser.add_argument("--feature-set",     required=True,
                         choices=["inliers", "RS", "SD", "SU", "SU+inliers"])
     parser.add_argument("--criterion",       required=True,
-                        choices=["P(hard)", "P(help)", "P(help)-aP(hurts)", "P(help)/P(hurts)>1"])
+                        choices=["P(hard)", "P(help)", "P(help)-aP(hurts)", "P(help)/P(hurts)>1",
+                                 "youden", "best_r1", "efficiency_95"])
     parser.add_argument("--output-dir",      required=True)
     parser.add_argument("--skipped-file",    default=None,
                         help="Percorso esplicito per skipped.txt (default: <output-dir>/../skipped.txt)")
@@ -140,26 +143,42 @@ def main():
 
     MATCHER_ALIAS = {"superpoint-lg": "sp-lg", "superpoint_lg": "sp-lg"}
     matcher_key = MATCHER_ALIAS.get(args.matcher, args.matcher)
-    fs_data    = data["matchers"][matcher_key]["feature_sets"][args.feature_set]
-    regressors = fs_data["regressors"]
-    hparams    = fs_data["val_hparams"][args.criterion]
-    tau        = hparams["tau"]
-    alpha      = hparams.get("alpha", 0.5)
+    matcher_data = data["matchers"][matcher_key]
 
     print(f"Modello       : {data['model']}")
     print(f"Matcher       : {args.matcher}")
     print(f"Feature set   : {args.feature_set}")
-    print(f"Criterio      : {args.criterion}  |  tau={tau}  |  alpha={alpha}")
+    print(f"Criterio      : {args.criterion}")
 
-    # Carica feature
-    feats = load_features(args.features_dir, args.feature_set)
-    query_ids = sorted(feats.keys(), key=lambda x: int(x) if x.isdigit() else x)
+    # ── Hard threshold (youden / best_r1 / efficiency_95) ────────────────────
+    if args.criterion in HARD_THRESHOLD_CRITERIA:
+        T = matcher_data["hard_thresholds"][args.criterion]["T"]
+        print(f"Soglia T      : {T}  (reranka se inliers < T)")
 
-    # Partiziona
-    rerank_ids, skip_ids = [], []
-    for qid in query_ids:
-        score = compute_score(args.criterion, regressors, feats[qid], alpha)
-        (rerank_ids if score > tau else skip_ids).append(qid)
+        feats = load_features(args.features_dir, "inliers")
+        query_ids = sorted(feats.keys(), key=lambda x: int(x) if x.isdigit() else x)
+
+        rerank_ids, skip_ids = [], []
+        for qid in query_ids:
+            inliers = feats[qid]["inliers"]
+            (rerank_ids if inliers < T else skip_ids).append(qid)
+
+    # ── Regressore logistico ─────────────────────────────────────────────────
+    else:
+        fs_data    = matcher_data["feature_sets"][args.feature_set]
+        regressors = fs_data["regressors"]
+        hparams    = fs_data["val_hparams"][args.criterion]
+        tau        = hparams["tau"]
+        alpha      = hparams.get("alpha", 0.5)
+        print(f"tau={tau}  |  alpha={alpha}")
+
+        feats = load_features(args.features_dir, args.feature_set)
+        query_ids = sorted(feats.keys(), key=lambda x: int(x) if x.isdigit() else x)
+
+        rerank_ids, skip_ids = [], []
+        for qid in query_ids:
+            score = compute_score(args.criterion, regressors, feats[qid], alpha)
+            (rerank_ids if score > tau else skip_ids).append(qid)
 
     pct = len(rerank_ids) / len(query_ids) * 100 if query_ids else 0
     print(f"Totale query  : {len(query_ids)}")

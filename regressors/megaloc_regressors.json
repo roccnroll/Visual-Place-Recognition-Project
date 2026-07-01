@@ -902,6 +902,17 @@
             }
           }
         }
+      },
+      "hard_thresholds": {
+        "youden": {
+          "T": 30
+        },
+        "best_r1": {
+          "T": 0
+        },
+        "efficiency_95": {
+          "T": 0
+        }
       }
     },
     "loftr": {
@@ -1804,6 +1815,17 @@
               }
             }
           }
+        }
+      },
+      "hard_thresholds": {
+        "youden": {
+          "T": 39
+        },
+        "best_r1": {
+          "T": 0
+        },
+        "efficiency_95": {
+          "T": 0
         }
       }
     }
