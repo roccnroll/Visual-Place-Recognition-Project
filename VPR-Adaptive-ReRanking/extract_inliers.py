@@ -46,7 +46,7 @@ def collect_inliers(match_dir, output_dir):
     rows = []
     for fpath in torch_files:
         query_id = Path(fpath).stem
-        data = torch.load(fpath, map_location="cpu")
+        data = torch.load(fpath, map_location="cpu", weights_only=False)
         # data è una lista di dict, uno per candidato (qui solo top-1)
         num_inliers = data[0].get("num_inliers", 0) if data else 0
         rows.append((query_id, num_inliers))
