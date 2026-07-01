@@ -138,7 +138,9 @@ def main():
     with open(args.regressors_json) as f:
         data = json.load(f)
 
-    fs_data    = data["matchers"][args.matcher]["feature_sets"][args.feature_set]
+    MATCHER_ALIAS = {"superpoint-lg": "sp-lg", "superpoint_lg": "sp-lg"}
+    matcher_key = MATCHER_ALIAS.get(args.matcher, args.matcher)
+    fs_data    = data["matchers"][matcher_key]["feature_sets"][args.feature_set]
     regressors = fs_data["regressors"]
     hparams    = fs_data["val_hparams"][args.criterion]
     tau        = hparams["tau"]
